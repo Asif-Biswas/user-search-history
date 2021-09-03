@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Search History</title>
+
+    <style>
+        table {
+          font-family: arial, sans-serif;
+          border-collapse: collapse;
+          width: 100%;
+        }
+        
+        td, th {
+          border: 1px solid #000000;
+          text-align: center;
+          padding: 8px;
+        }
+        
+        tr:nth-child(even) {
+          background-color: #dddddd;
+        }
+    </style>
+
+</head>
+<body>
+    <h1>User Search History</h1>
+    <h3>All keywords:</h3>
+    {% for i in myKeyWord %}
+        <div style="display: inline-block;">
+        {% for k,v in i.items %}
+            <div style="min-width: 200px;">
+                <input onchange="handleAllKeyword('{{k}}')" type="checkbox"/> <b>{{k}}</b> ({{v}} times found)<span style="margin-right: 8px;"></span>
+            </div>
+        {% endfor %}
+        </div>
+    {% endfor %}
+    <hr/>
+
+    <h3>All Specific Keywords</h3>
+    {% for i in myword %}
+        <div style="display: inline-block;">
+        {% for k,v in i.items %}
+            <div style="min-width: 200px;">
+                <input onchange="handleSpecificKeyword('{{k}}')" type="checkbox"/> <b>{{k}}</b> ({{v}} times found)<span style="margin-right: 8px;"></span>
+            </div>
+        {% endfor %}
+        </div>
+    {% endfor %}
+    <hr/>
+
+    <h3>All Users</h3>
+    {% for u in allUsers %}
+        <div style="display: inline-block;">
+            <div style="min-width: 100px;">
+                <input onchange="handleUser('{{u.user}}')" type="checkbox"/> <b>{{u.user}}</b>
+            </div>
+        </div>
+    {% endfor %}
+    <hr/>
+
+    <h3>Time Range:</h3>
+    <p><input onchange="handleTimeRange('yesterday')" type="radio" name="timeRange"/> See data from yesterday</p>
+    <p><input onchange="handleTimeRange('week')" type="radio" name="timeRange"/> See data from last week</p>
+    <p><input onchange="handleTimeRange('month')" type="radio" name="timeRange"/> See data from last month</p>
+    <hr/>
+
+    <h3>Select date:</h3>
+    <label>Enter start date:</label>
+    <input id="manualStartDate" style="min-width: 200px;" type="text" placeholder="yyyy-mm-dd"/><br>
+    <label>Enter end date: </label>
+    <input id="manualEndDate" style="min-width: 200px;" type="text" placeholder="yyyy-mm-dd"/>
+    
+    <p id="invalidDate" style="color: red;"></p>
+
+    
+    <button onclick="manualDateHandler()" style="padding: 8px 16px; background-color: rgb(3, 121, 255); color: white;">Show filtered result</button>
+    <br><br>
+    <hr>
+    <hr>
+    
+    <table id="table">
+        <tr><th>Specific keyword</th><th>Full keyword</th><th>User</th> <th>Date</th></tr>
+    </table>
+    <br><br><br><br><br><br>
+
+
+
+    <script>
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    // Does this cookie string begin with the name we want?
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        let csrftoken = this.getCookie('csrftoken');
+
+        function appendRow(obj){
+            document.getElementById('table').innerHTML = '<tr><th>Specific keyword</th><th>Full keyword</th><th>User</th> <th>Date</th></tr>'
+            for (let index = 0; index < obj.length; index++) {
+                const element = obj[index];
+                const row = '<tr><td>'+element['specificKeyword']+'</td><td>'+element['fullKeyword']+'</td><td>'+element['user']+'</td><td>'+element['date']+'</td></tr>'
+                
+                document.getElementById('table').innerHTML += row
+            }
+        }
+
+        let myResult = null
+        function getAllResult(){
+            fetch('/getAllResult/',{
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json, text/plain',
+                    'Contentt-type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                }
+            })
+            .then((response)=>{
+                response.json().then((result)=>{
+                    myResult = result.result
+                    appendRow(result.result)
+                })
+            })
+        }
+        getAllResult()
+
+
+        let startDate = new Date('1971-12-16')
+        let endDate = new Date()
+
+        function filterWithDate(obj){
+            let myObject = []
+            for (let index = 0; index < obj.length; index++) {
+                const element = obj[index];
+                const elementDate = new Date(element.date)
+                if(elementDate > startDate && elementDate < endDate){
+                    myObject.push(element)
+                }
+            }
+            myNewResult = myObject
+        }
+
+
+        let filter = {allKeyword:[], specificKeyword:[], user:[], timeRange:[], startDate:[], endDate:[]}
+        function filterHandler(obj){
+            myNewResult = []
+            if(obj.allKeyword.length){
+                for (let i = 0; i < obj.allKeyword.length; i++) {
+                    const element = obj.allKeyword[i];
+                    for (let j = 0; j < myResult.length; j++) {
+                        const element2 = myResult[j];
+                        if(element === element2['fullKeyword'] && !myNewResult.includes(element2)){
+                            myNewResult.push(element2)
+                        }
+                    }
+                }
+            }
+
+            if(obj.specificKeyword.length){
+                for (let i = 0; i < obj.specificKeyword.length; i++) {
+                    const element = obj.specificKeyword[i];
+                    for (let j = 0; j < myResult.length; j++) {
+                        const element2 = myResult[j];
+                        if(element2['specificKeyword'].includes(element) && !myNewResult.includes(element2)){
+                            myNewResult.push(element2)
+                        }
+                    }
+                }
+            }
+
+            if(obj.user.length){
+                for (let i = 0; i < obj.user.length; i++) {
+                    const element = obj.user[i];
+                    for (let j = 0; j < myResult.length; j++) {
+                        const element2 = myResult[j];
+                        if(element === element2['user'] && !myNewResult.includes(element2)){
+                            myNewResult.push(element2)
+                        }
+                    }
+                }
+            }
+            
+            if(obj.timeRange === 'yesterday'){
+                startDate = new Date(Date.now() - 86400000)
+            }
+            if(obj.timeRange === 'week'){
+                startDate = new Date(Date.now() - 86400000*7)
+            }
+            if(obj.timeRange === 'month'){
+                startDate = new Date(Date.now() - 86400000*30)
+            }
+            if(myNewResult.length){
+                filterWithDate(myNewResult)
+            }else{
+                filterWithDate(myResult)
+            }
+            
+
+            appendRow(myNewResult);
+            
+        }
+
+
+
+        function handleAllKeyword(k){
+            if(filter.allKeyword.includes(k)){
+                const index = filter.allKeyword.indexOf(k)
+                filter.allKeyword.splice(index, 1)
+            }else{
+                filter.allKeyword.push(k)
+            }
+            filterHandler(filter)
+        }
+        function handleSpecificKeyword(k){
+            if(filter.specificKeyword.includes(k)){
+                const index = filter.specificKeyword.indexOf(k)
+                filter.specificKeyword.splice(index, 1)
+            }else{
+                filter.specificKeyword.push(k)
+            }
+            
+            filterHandler(filter)
+        }
+        function handleUser(k){
+            if(filter.user.includes(k)){
+                const index = filter.user.indexOf(k)
+                filter.user.splice(index, 1)
+            }else{
+                filter.user.push(k)
+            }
+            filterHandler(filter)
+        }
+        function handleTimeRange(k){
+            filter.timeRange = k
+            filterHandler(filter)
+        }
+        function manualDateHandler(){
+            const manualStartDate = document.getElementById('manualStartDate').value
+            const msd = new Date(manualStartDate)
+            const manualEndDate = document.getElementById('manualEndDate').value
+            const med = new Date(manualEndDate)
+
+            if(msd < med){
+                startDate = msd
+                endDate = med
+                filterHandler(filter)
+                document.getElementById('invalidDate').innerHTML = ''
+            }else{
+                document.getElementById('invalidDate').innerHTML = '~ Invalid date. Please, try again.'
+            }
+        }
+    </script>
+</body>
+</html>
