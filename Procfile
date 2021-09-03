@@ -1,0 +1,1 @@
+web: waitress-serve --port=$PORT user_search_history.wsgi:application
